@@ -7,7 +7,6 @@ import (
 
 	"gemini-web-to-api/internal/commons/configs"
 
-	"github.com/gofiber/contrib/v3/swaggo"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
@@ -38,22 +37,14 @@ func NewGeminiWebToAPI(log *zap.Logger, cfg *configs.Config) *fiber.App {
 		}))
 	}
 
-	// Swagger UI — gofiber/contrib/v3/swaggo (Fiber v3 compatible)
-	app.Get("/swagger/*", swaggo.HandlerDefault)
+	app.Get("/docs", ScalarUI)
+	app.Get("/openapi.json", OpenAPISpec)
 
-	// Health check endpoint — used by Docker/K8s/cloud platforms
 	app.Get("/health", HealthCheck)
 
 	return app
 }
 
-// HealthCheck godoc
-// @Summary      Health check
-// @Description  Returns the health status of the service. Used by Docker/K8s/cloud platforms to monitor the service.
-// @Tags         System
-// @Produce      json
-// @Success      200  {object}  object{status=string,service=string}  "Service is healthy"
-// @Router       /health [get]
 func HealthCheck(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status":  "ok",
