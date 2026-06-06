@@ -148,7 +148,7 @@ func (c *Client) uploadFile(ctx context.Context, filename, mimeType string, data
 		req.Header.Set("Cookie", cookieHdr)
 	}
 
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := c.httpClient.GetClient().Do(req)
 	if err != nil {
 		return uploadedFile{}, fmt.Errorf("upload %q failed: %w", filename, err)
 	}

@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -54,30 +53,30 @@ func (m *ChatCompletionMessage) UnmarshalJSON(data []byte) error {
 	}
 
 	var parts []ChatCompletionMessageContentPart
-	if err := json.Unmarshal(raw.Content, &parts); err == nil {
-		textParts := make([]string, 0, len(parts))
-		attachments := make([]models.Attachment, 0)
-		for _, p := range parts {
-			switch strings.ToLower(strings.TrimSpace(p.Type)) {
-			case "text":
-				if p.Text != "" {
-					textParts = append(textParts, p.Text)
-				}
-			case "image_url", "input_image":
-				if p.ImageURL == nil {
-					continue
-				}
-				if attachment, ok := attachmentFromDataURL(p.ImageURL.URL, len(attachments)+1); ok {
-					attachments = append(attachments, attachment)
-				}
-			}
-		}
-		m.Content = strings.Join(textParts, "\n")
-		m.Attachments = attachments
-		return nil
+	if err := json.Unmarshal(raw.Content, &parts); err != nil {
+		return fmt.Errorf("unsupported messages.content format: %w", err)
 	}
 
-	return fmt.Errorf("unsupported messages.content format")
+	textParts := make([]string, 0, len(parts))
+	attachments := make([]models.Attachment, 0)
+	for _, p := range parts {
+		switch strings.ToLower(strings.TrimSpace(p.Type)) {
+		case "text":
+			if p.Text != "" {
+				textParts = append(textParts, p.Text)
+			}
+		case "image_url", "input_image":
+			if p.ImageURL == nil {
+				continue
+			}
+			if attachment, ok := attachmentFromDataURL(p.ImageURL.URL, len(attachments)+1); ok {
+				attachments = append(attachments, attachment)
+			}
+		}
+	}
+	m.Content = strings.Join(textParts, "\n")
+	m.Attachments = attachments
+	return nil
 }
 
 func (m ChatCompletionMessage) ToModelMessage() models.Message {
@@ -107,10 +106,6 @@ func attachmentFromDataURL(value string, index int) (models.Attachment, bool) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	if _, err := base64.StdEncoding.DecodeString(metaAndData[1]); err != nil {
-		return models.Attachment{}, false
-	}
-
 	return models.Attachment{
 		Name:     fmt.Sprintf("image_%d%s", index, extensionFromMimeType(mimeType)),
 		MimeType: mimeType,

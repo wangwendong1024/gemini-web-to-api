@@ -57,6 +57,17 @@ const (
 	defaultRefreshIntervalMinutes = 30
 )
 
+var (
+	accessTokenRegex         = regexp.MustCompile(`"SNlM0e":"([^"]+)"`)
+	accessTokenFallbackRegex = regexp.MustCompile(`\["SNlM0e","([^"]+)"\]`)
+	pushIDRegex              = regexp.MustCompile(`"qKIAYe":"([^"]+)"`)
+	buildLabelRegex          = regexp.MustCompile(`"cfb2h":"([^"]+)"`)
+	sessionIDRegex           = regexp.MustCompile(`"FdrFJe":"([^"]+)"`)
+	languageRegex            = regexp.MustCompile(`"TuX5cc":"([^"]+)"`)
+	modelIDRegex             = regexp.MustCompile(`gemini-[a-zA-Z0-9.-]+`)
+	validModelPrefixRegex    = regexp.MustCompile(`^gemini-(\d|advanced)`)
+)
+
 func NewClient(cfg *configs.Config, log *zap.Logger) *Client {
 	cookies := &CookieStore{
 		Secure1PSID:   cfg.Gemini.Secure1PSID,
@@ -268,11 +279,9 @@ func (c *Client) refreshSessionToken() error {
 	// Merge cookies from the init response into cookieStr
 	cookieStr = mergeCookies(cookieStr, resp.Cookies())
 
-	re := regexp.MustCompile(`"SNlM0e":"([^"]+)"`)
-	matches := re.FindStringSubmatch(body)
+	matches := accessTokenRegex.FindStringSubmatch(body)
 	if len(matches) < 2 {
-		reFallback := regexp.MustCompile(`\["SNlM0e","([^"]+)"\]`)
-		matches = reFallback.FindStringSubmatch(body)
+		matches = accessTokenFallbackRegex.FindStringSubmatch(body)
 		if len(matches) < 2 {
 			errMsg := "authentication failed: SNlM0e not found"
 			if strings.Contains(body, "Sign in") || strings.Contains(body, "login") {
@@ -284,19 +293,19 @@ func (c *Client) refreshSessionToken() error {
 	}
 
 	pushID := "feeds/mcudyrk2a4khkz"
-	if pushMatches := regexp.MustCompile(`"qKIAYe":"([^"]+)"`).FindStringSubmatch(body); len(pushMatches) >= 2 {
+	if pushMatches := pushIDRegex.FindStringSubmatch(body); len(pushMatches) >= 2 {
 		pushID = pushMatches[1]
 	}
 	buildLabel := ""
-	if buildMatches := regexp.MustCompile(`"cfb2h":"([^"]+)"`).FindStringSubmatch(body); len(buildMatches) >= 2 {
+	if buildMatches := buildLabelRegex.FindStringSubmatch(body); len(buildMatches) >= 2 {
 		buildLabel = buildMatches[1]
 	}
 	sessionID := ""
-	if sessionMatches := regexp.MustCompile(`"FdrFJe":"([^"]+)"`).FindStringSubmatch(body); len(sessionMatches) >= 2 {
+	if sessionMatches := sessionIDRegex.FindStringSubmatch(body); len(sessionMatches) >= 2 {
 		sessionID = sessionMatches[1]
 	}
 	language := "en"
-	if langMatches := regexp.MustCompile(`"TuX5cc":"([^"]+)"`).FindStringSubmatch(body); len(langMatches) >= 2 {
+	if langMatches := languageRegex.FindStringSubmatch(body); len(langMatches) >= 2 {
 		language = langMatches[1]
 	}
 
@@ -320,20 +329,12 @@ func (c *Client) refreshModels(body string) {
 	var newModels []ModelInfo
 	now := time.Now().Unix()
 
-	// Improved regex to find gemini model IDs even when escaped in JSON
-	// Matches IDs like gemini-2.0-flash, gemini-1.5-pro, etc.
-	// We look for gemini- followed by alphanumeric characters, dots, or dashes.
-	modelIDRegex := regexp.MustCompile(`gemini-[a-zA-Z0-9.-]+`)
 	matches := modelIDRegex.FindAllString(body, -1)
-
-	// Only keep real generative models: version number after gemini- (e.g. gemini-2.0-flash)
-	// or well-known names like gemini-advanced. Excludes UI config entries like gemini-u-* and gemini-apps-*.
-	validModelPrefix := regexp.MustCompile(`^gemini-(\d|advanced)`)
 
 	uniqueIDs := make(map[string]bool)
 	for _, id := range matches {
 		id = strings.Trim(id, `\"' `)
-		if !uniqueIDs[id] && len(id) > 10 && validModelPrefix.MatchString(id) {
+		if !uniqueIDs[id] && len(id) > 10 && validModelPrefixRegex.MatchString(id) {
 			uniqueIDs[id] = true
 			newModels = append(newModels, ModelInfo{
 				ID:       id,

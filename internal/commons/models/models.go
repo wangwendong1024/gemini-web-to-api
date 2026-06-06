@@ -54,7 +54,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		} `json:"source,omitempty"`
 	}
 	if err := json.Unmarshal(raw.Content, &parts); err != nil {
-		return fmt.Errorf("unsupported messages.content format")
+		return fmt.Errorf("unsupported messages.content format: %w", err)
 	}
 
 	textParts := make([]string, 0, len(parts))
